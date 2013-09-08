@@ -4,9 +4,10 @@
 
 config = {
     "imageFiles": ['images/*.jpg', 'images/*.png'],
+    "outFile": "timelapse.avi",
     "verbose": False,
-    # Configure either FPS or duration, not both
+    "sortFiles": "basename",
+    "codec": "DIVX",
     "fps": 60,
     "duration": None,
-    "sortFiles": "filename"
 }

@@ -56,14 +56,14 @@ class TestLauncher(TestCase):
             "imageFiles": ['images/*.jpg', 'images/*.png', 'images/*.gif'],
             "verbose": True,
             "fps": None,
-            "duration": 60
+            "duration": 60.0
         }
 
         expected = {
             "config": "config.py",
             "verbose": False,
-            "fps": 30,
-            "duration": None,
+            "fps": 30.0,
+            "duration": 60.0,
             "imageFiles": ['images/*.jpg', 'images/*.png', 'images/*.gif']
         }
 

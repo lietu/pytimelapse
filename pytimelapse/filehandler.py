@@ -32,12 +32,13 @@ class FileHandler(object):
         fileData.sort(key=lambda file: file.__dict__[sortKey])
 
         # Extract filenames back from that
-        newFiles = [file.filename for file in fileData]
+        newFiles = [file.filepath for file in fileData]
 
         return newFiles
 
 
 class File(object):
     def __init__(self, filename):
-        self.filename = filename
+        self.filepath = os.path.abspath(filename)
+        self.basename = os.path.basename(filename)
         self.modified = os.path.getmtime(filename)

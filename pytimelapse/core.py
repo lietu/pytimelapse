@@ -7,9 +7,13 @@ import imp
 import logging
 import traceback
 import sys
+import math
+import time
+import datetime
 
 import pytimelapse
 from filehandler import FileHandler
+import media
 
 
 __doc__ = """Core classes of pytimelapse, main logic"""
@@ -20,6 +24,8 @@ class Launcher(object):
 
     def start(self):
         """Starts the application"""
+
+        startTime = time.time()
 
         # Set up logging
         logger = self.get_logger()
@@ -36,6 +42,14 @@ class Launcher(object):
             # Start the application
             app = Pytimelapse()
             app.run(config)
+
+            elapsed = str(
+                datetime.timedelta(seconds=(time.time() - startTime))
+            )
+
+            logger.info(
+                "All done, time elapsed: {} ".format(elapsed)
+            )
 
         except:
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -78,8 +92,9 @@ class Launcher(object):
         parser.add_argument(
             '-s', '--sort',
             metavar="key",
-            help="Sort files by filename or modified time before processing",
-            choices=['filename', 'modified']
+            help="Sort files by absolute path, filename or modified time "
+                 "before processing",
+            choices=['filepath', 'basename', 'modified']
         )
 
         parser.add_argument(
@@ -104,20 +119,29 @@ class Launcher(object):
             metavar="pattern"
         )
 
-        # FPS or duration group
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument(
+        parser.add_argument(
+            '--codec',
+            help="Codec to encode with",
+            choices=media.codecs
+        )
+
+        parser.add_argument(
+            '--outFile',
+            help="File to write the video to",
+            metavar="filename"
+        )
+
+        parser.add_argument(
             '--fps',
             help="Target FPS of the timelapse",
             type=float
         )
 
-        group.add_argument(
+        parser.add_argument(
             '--duration',
             help="Target duration of the timelapse, in seconds",
             type=float
         )
-        # End group
 
         args = parser.parse_args(arguments)
 
@@ -131,11 +155,6 @@ class Launcher(object):
         for key in arguments:
             if arguments[key] is None:
                 continue
-
-            if key == "fps":
-                config["duration"] = None
-            elif key == "duration":
-                config["fps"] = None
 
             config[key] = arguments[key]
 
@@ -178,34 +197,123 @@ class Pytimelapse(object):
 
     def __init__(self):
         self.logger = logging.getLogger("pytimelapse")
+        self.imageHandler = media.ImageHandler()
 
     def run(self, config):
+        self.logger.debug("Scanning for files")
+
         files = FileHandler().find_files(
             config["imageFiles"],
             config["sortFiles"]
         )
 
+        self.logger.debug("Done, found {} files".format(len(files)))
+
         fps, duration = self.get_fps_duration(files, config)
 
         self.logger.info(
-            "Resulting file will have {fps:.2f} FPS and last {duration:.2f} "
-            "seconds".format(**{
+            "Resulting file will have {fps:.2f} FPS and last {duration}"
+            .format(**{
                 "fps": fps,
-                "duration": duration
+                "duration": str(datetime.timedelta(seconds=duration))
             })
         )
+
+        files = self.filter_files(files, fps, duration)
+
+        file = files[0]
+        frameSize = self.imageHandler.get_frame_size(file)
+
+        self.logger.info(
+            "Frames will be {width}x{height}".format(**{
+                "width": frameSize[0],
+                "height": frameSize[1]
+            })
+        )
+
+        video = media.VideoHandler(
+            config["codec"],
+            config["fps"],
+            frameSize
+        )
+
+        video.open(config["outFile"])
+
+        for i, file in enumerate(files):
+            video.write_frame(file)
+
+            if i % math.floor(config["fps"]) == 0:
+                duration = i / config["fps"]
+                self.logger.info(
+                    "Encoded {duration}".format(**{
+                        "duration": str(datetime.timedelta(seconds=duration))
+                    })
+                )
+
+    def filter_files(self, files, fps, duration):
+        """Filters given fileset to """
+
+        needFiles = fps * duration
+        haveFiles = len(files)
+
+        keepRatio = float(needFiles) / float(haveFiles)
+
+        if keepRatio == 1:
+            return files
+
+        newFiles = [files[0]]
+        length = 1
+        counter = keepRatio
+
+        self.logger.info(
+            "Filtering to use {fraction:.2f}% of the {count} available files."
+            .format(
+                **{
+                    "fraction": keepRatio * 100,
+                    "count": haveFiles
+                }
+            )
+        )
+
+        for i in range(1, haveFiles):
+            counter = counter + keepRatio
+            if counter >= length and length < needFiles:
+                length = length + 1
+                newFiles.append(files[i])
+
+                if length == needFiles:
+                    break
+
+        kept = len(newFiles)
+        skipped = haveFiles - kept
+
+        self.logger.info(
+            "Filtered {skipped} files, {kept} will be used.".format(**{
+                "skipped": skipped,
+                "kept": kept
+            })
+        )
+
+        return newFiles
 
     def get_fps_duration(self, files, config):
         """Calculate FPS and total duration of resulting file"""
 
         frames = len(files)
 
+        if config["duration"] is None:
+            config["duration"] = frames / config["fps"]
+        elif config["fps"] is None:
+            config["fps"] = frames / config["duration"]
 
-        if config["fps"]:
-            fps = config["fps"]
-            duration = frames / fps
-        else:
-            duration = config["duration"]
-            fps = frames / duration
+        desiredFrames = config["fps"] * config["duration"]
+        if desiredFrames > frames:
+            raise ValueError(
+                "Frames needed for given FPS ({}) and "
+                "duration exceeds available frames ({})"
+                .format(
+                    desiredFrames, frames
+                )
+            )
 
-        return fps, duration
+        return config["fps"], config["duration"]

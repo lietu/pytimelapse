@@ -33,7 +33,7 @@ class TestFileHandler(TestCase):
             os.path.join(absPath, "*.jpg")
         ]
 
-        files = fileHandler.find_files(patterns, "filename")
+        files = fileHandler.find_files(patterns, "filepath")
         self.assertEqual(expected, files)
 
         patterns = [
@@ -42,7 +42,7 @@ class TestFileHandler(TestCase):
             os.path.join(absPath, "3")
         ]
 
-        files = fileHandler.find_files(patterns, "filename")
+        files = fileHandler.find_files(patterns, "basename")
         self.assertEqual(expected, files)
 
         del expected[2]
@@ -51,7 +51,7 @@ class TestFileHandler(TestCase):
             os.path.join(absPath, "[12]")
         ]
 
-        files = fileHandler.find_files(patterns, "filename")
+        files = fileHandler.find_files(patterns, "basename")
         self.assertEqual(expected, files)
 
     def test_sort_files(self):
@@ -78,7 +78,7 @@ class TestFileHandler(TestCase):
             files[0]
         ]
 
-        sortedFiles = fileHandler.sort_files(unsorted, sortKey="filename")
+        sortedFiles = fileHandler.sort_files(unsorted, sortKey="filepath")
         self.assertEqual(files, sortedFiles)
 
         files.reverse()
