@@ -39,6 +39,32 @@ You can configure the parameters via config.py, or override them all on the comm
 python pytimelapse.py --help
 ```
 
+```
+usage: pytimelapse.py [-h] [-c filename] [-s key] [-v] [-q]
+                      [--imageFiles [pattern [pattern ...]]]
+                      [--codec {I263,FLV1,U263,MP42,MJPG,PIM1,DIVX,DIV3}]
+                      [--outFile filename] [--fps FPS] [--duration DURATION]
+
+Generates timelapse videos from a collection of snapshot images.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c filename, --config filename
+                        Specify config to be used, defaults to config.py
+  -s key, --sort key    Sort files by absolute "filepath", "basename" or
+                        "modified" time before processing
+  -v, --verbose         Increase output verbosity
+  -q, --quiet           Less verbose output
+  --imageFiles [pattern [pattern ...]]
+                        Filename patterns to include in timelapse, e.g.
+                        images/*.jpg
+  --codec {I263,FLV1,U263,MP42,MJPG,PIM1,DIVX,DIV3}
+                        Codec to encode with
+  --outFile filename    File to write the video to
+  --fps FPS             Target FPS of the timelapse
+  --duration DURATION   Target duration of the timelapse, in seconds
+```
+
 
 ## License
 

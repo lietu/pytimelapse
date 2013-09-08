@@ -92,7 +92,8 @@ class Launcher(object):
         parser.add_argument(
             '-s', '--sort',
             metavar="key",
-            help="Sort files by absolute path, filename or modified time "
+            help="Sort files by absolute \"filepath\", "
+                 "\"basename\" or \"modified\" time "
                  "before processing",
             choices=['filepath', 'basename', 'modified']
         )
