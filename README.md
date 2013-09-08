@@ -26,18 +26,18 @@ Basically what I had to do was rougly along the lines of:
 
 There are limited tests, which you can run e.g. by installing nose and mock, and then running
 
-{{{
+```
 nosetests
-}}}
+```
+
 
 ## Usage
 
 You can configure the parameters via config.py, or override them all on the commandline. Most things should be fairly self-explanatory, just run:
 
-{{{
+```
 python pytimelapse.py --help
-}}}
-
+```
 
 
 ## License
