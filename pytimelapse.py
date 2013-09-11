@@ -3,6 +3,8 @@
 #
 # Copyright 2013  Janne Enberg
 
+"""Startup script for pytimelapse"""
+
 from pytimelapse.core import Launcher
 
 

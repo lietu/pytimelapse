@@ -40,10 +40,13 @@ python pytimelapse.py --help
 ```
 
 ```
-usage: pytimelapse.py [-h] [-c filename] [-s key] [-v] [-q]
-                      [--imageFiles [pattern [pattern ...]]]
+usage: pytimelapse.py [-h] [-c filename] [-s KEY] [-v] [-q]
+                      [--imageFiles [PATTERN [PATTERN ...]]]
                       [--codec {I263,FLV1,U263,MP42,MJPG,PIM1,DIVX,DIV3}]
-                      [--outFile filename] [--fps FPS] [--duration DURATION]
+                      [--outFile FILENAME] [--fps FPS] [--duration SECONDS]
+                      [--startFile FILENAME] [--useNthFile N]
+                      [--onlyBetweenTimes HH:MM:SS-HH:MM:SS]
+                      [--timestampTimezone TIMEZONE]
 
 Generates timelapse videos from a collection of snapshot images.
 
@@ -51,18 +54,28 @@ optional arguments:
   -h, --help            show this help message and exit
   -c filename, --config filename
                         Specify config to be used, defaults to config.py
-  -s key, --sort key    Sort files by absolute "filepath", "basename" or
+  -s KEY, --sort KEY    Sort files by absolute "filepath", "basename" or
                         "modified" time before processing
   -v, --verbose         Increase output verbosity
   -q, --quiet           Less verbose output
-  --imageFiles [pattern [pattern ...]]
+  --imageFiles [PATTERN [PATTERN ...]]
                         Filename patterns to include in timelapse, e.g.
                         images/*.jpg
   --codec {I263,FLV1,U263,MP42,MJPG,PIM1,DIVX,DIV3}
                         Codec to encode with
-  --outFile filename    File to write the video to
+  --outFile FILENAME    File to write the video to
   --fps FPS             Target FPS of the timelapse
-  --duration DURATION   Target duration of the timelapse, in seconds
+  --duration SECONDS    Target duration of the timelapse, in seconds
+  --startFile FILENAME  Skip all the files sorted before the given file
+  --useNthFile N        Only use every Nth file, good in combination with
+                        startFile
+  --onlyBetweenTimes HH:MM:SS-HH:MM:SS
+                        Only include images taken between the timestamps, Will
+                        pick last number in filename and assume it's a unix
+                        timestamp, then filter based on the given time range
+  --timestampTimezone TIMEZONE
+                        Parse the file timestamp as if from the given timezone
+
 ```
 
 

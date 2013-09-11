@@ -22,20 +22,19 @@ __doc__ = """Core classes of pytimelapse, main logic"""
 class Launcher(object):
     """Handles initialization logic for the application"""
 
+    def __init__(self):
+        self.logger = None
+
     def start(self):
         """Starts the application"""
 
         startTime = time.time()
 
-        # Set up logging
-        logger = self.get_logger()
-
         try:
-            # Parse arguments
-            arguments, parser = self.get_arguments()
+            config = ConfigHandler().get_config()
 
-            # Load config
-            config = self.load_config(arguments, parser)
+            # Set up logging
+            logger = self.get_logger(config)
 
             logger.debug("Pytimelapse initialized")
 
@@ -52,32 +51,183 @@ class Launcher(object):
             )
 
         except:
+            # Get exception data
             exc_type, exc_value, exc_traceback = sys.exc_info()
 
+            # If sys.exit(), ignore
             if exc_type == SystemExit:
                 return
 
+            # Collect traceback
             tracebackItems = traceback.format_exception(
                 exc_type,
                 exc_value,
                 exc_traceback
             )
 
-            message = "Uncaught %(type)s exception: %(value)s " % {
+            # Make a pretty error message
+            message = "Uncaught {type} exception: {value} ".format(**{
                 "type": exc_type,
                 "value": exc_value
-            }
-
+            })
             message += "\n"
 
+            # Prepend all lines with !! to make it very clear that this is
+            # an error
             for item in tracebackItems:
                 for line in item.split("\n"):
                     message += '!! ' + line + "\n"
 
+            # Throw it to the logger
+            logger = self.get_logger()
             logger.critical(message)
 
+    def get_logger(self, config=None):
+        """Initialize the logging system"""
+
+        # If already initialized, do nothing
+        if self.logger:
+            return self.logger
+
+        # Get a logger
+        logger = logging.getLogger("pytimelapse")
+
+        # Make the logger itself catch all messages
+        logger.setLevel(logging.DEBUG)
+
+        # Format it to include even more data
+        formatter = logging.Formatter(
+            '%(asctime)s [%(levelname)8s] %(filename)s:%(lineno)i: %'
+            '(message)s'
+        )
+
+        # Create a handler to log into the console
+        consoleLogger = logging.StreamHandler()
+
+        # Pick a verbosity level for the console
+        if config is None or config["verbosity"] >= 2:
+            consoleLogger.setLevel(logging.DEBUG)
+        elif config["verbosity"] >= 1:
+            consoleLogger.setLevel(logging.INFO)
+        else:
+            consoleLogger.setLevel(logging.ERROR)
+
+        # Make sure we format console output
+        consoleLogger.setFormatter(formatter)
+
+        # Make the logger route the logs to the console handler
+        logger.addHandler(consoleLogger)
+
+        self.logger = logger
+
+        return logger
+
+
+class Pytimelapse(object):
+    """Handles the timelapse logic"""
+
+    def __init__(self):
+        self.logger = logging.getLogger("pytimelapse")
+
+    def run(self, config):
+        """Main application logic"""
+
+        self.logger.debug("Scanning for files")
+
+        fileHandler = FileHandler()
+
+        # Find the image frames
+        files = fileHandler.find_files(config)
+
+        if len(files) == 0:
+            raise Exception("No image files found")
+
+        self.logger.debug("Done, found {} files".format(len(files)))
+
+        files = fileHandler.filter_files(files, config)
+
+        self.logger.debug("Filtered to {} files".format(len(files)))
+
+        # And now we have to recalculate final FPS and duration
+        fps, duration = self.get_fps_duration(files, config)
+
+        self.logger.info(
+            "Resulting file will have {fps:.2f} FPS and last {duration}"
+            .format(**{
+                "fps": fps,
+                "duration": str(datetime.timedelta(seconds=duration))
+            })
+        )
+
+        # Figure out the frame size for the video, picking the size of the
+        # first image
+        frameSize = media.ImageHandler().get_size(files[0])
+
+        self.logger.info(
+            "Frames will be {width}x{height}".format(**{
+                "width": frameSize[0],
+                "height": frameSize[1]
+            })
+        )
+
+        # Start video handler
+        video = media.VideoHandler(
+            config["codec"],
+            config["fps"],
+            frameSize
+        )
+
+        video.open(config["outFile"])
+
+        # Go through frames
+        for i, file in enumerate(files):
+            # Write
+            video.write_frame(file)
+
+            # Update user occasionally about our progress
+            if i % math.floor(config["fps"]) == 0:
+                duration = i / config["fps"]
+                self.logger.info(
+                    "Encoded {duration}".format(**{
+                        "duration": str(datetime.timedelta(seconds=duration))
+                    })
+                )
+
+    def get_fps_duration(self, files, config):
+        """Calculate FPS and total duration of resulting file"""
+
+        frames = len(files)
+
+        fps = config["fps"]
+        duration = config["duration"]
+
+        if duration is None:
+            duration = frames / fps
+        elif fps is None:
+            fps = frames / duration
+
+        return fps, duration
+
+
+class ConfigHandler(object):
+    """Handle's software configuration"""
+
+    def get_config(self):
+        """Parse CLI args and config file and merge them"""
+
+        # Parse arguments
+        arguments, parser = self.get_arguments()
+
+        # Load config
+        config = self.load_config(arguments, parser)
+
+        # Check that we have necessary data
+        self.check_config(config, parser)
+
+        return config
+
     def get_arguments(self, arguments=None):
-        """Set up an argparser object to parse our command line arguments"""
+        """Parse our command-line arguments"""
 
         description = pytimelapse.__doc__
         parser = argparse.ArgumentParser(description=description)
@@ -91,7 +241,7 @@ class Launcher(object):
 
         parser.add_argument(
             '-s', '--sort',
-            metavar="key",
+            metavar="KEY",
             help="Sort files by absolute \"filepath\", "
                  "\"basename\" or \"modified\" time "
                  "before processing",
@@ -101,15 +251,13 @@ class Launcher(object):
         parser.add_argument(
             '-v', '--verbose',
             help="Increase output verbosity",
-            action="store_true",
-            default=None
+            action="count"
         )
 
         parser.add_argument(
             '-q', '--quiet',
             help="Less verbose output",
-            action="store_false",
-            dest="verbose"
+            action="count"
         )
 
         parser.add_argument(
@@ -117,7 +265,7 @@ class Launcher(object):
             help="Filename patterns to include in timelapse, "
                  "e.g. images/*.jpg",
             nargs="*",
-            metavar="pattern"
+            metavar="PATTERN"
         )
 
         parser.add_argument(
@@ -129,7 +277,7 @@ class Launcher(object):
         parser.add_argument(
             '--outFile',
             help="File to write the video to",
-            metavar="filename"
+            metavar="FILENAME"
         )
 
         parser.add_argument(
@@ -141,7 +289,36 @@ class Launcher(object):
         parser.add_argument(
             '--duration',
             help="Target duration of the timelapse, in seconds",
-            type=float
+            type=float,
+            metavar="SECONDS"
+        )
+
+        parser.add_argument(
+            '--startFile',
+            help="Skip all the files sorted before the given file",
+            metavar="FILENAME"
+        )
+
+        parser.add_argument(
+            '--useNthFile',
+            help="Only use every Nth file, good in combination with "
+                 "startFile",
+            type=int,
+            metavar="N"
+        )
+
+        parser.add_argument(
+            '--onlyBetweenTimes',
+            help="Only include images taken between the timestamps, Will pick "
+                 "last number in filename and assume it's a unix timestamp, "
+                 "then filter based on the given time range",
+            metavar="HH:MM:SS-HH:MM:SS"
+        )
+
+        parser.add_argument(
+            '--timestampTimezone',
+            help="Parse the file timestamp as if from the given timezone",
+            metavar="TIMEZONE"
         )
 
         args = parser.parse_args(arguments)
@@ -157,164 +334,29 @@ class Launcher(object):
             if arguments[key] is None:
                 continue
 
-            config[key] = arguments[key]
+            if key == "verbose":
+                config["verbosity"] += arguments[key]
+            elif key == "quiet":
+                config["verbosity"] -= arguments[key]
+            else:
+                config[key] = arguments[key]
 
         return config
 
     def read_config_file(self, configFile, parser):
+        """Read the actual config file"""
+
         try:
             config_module = imp.load_source('config', configFile)
         except IOError:
             parser.error(
-                "Invalid config %(config)s, file not found." % {
-                    "config": configFile
-                }
+                "Invalid config {}, file not found.".format(configFile)
             )
 
         return config_module.config
 
-    def get_logger(self):
-        """Initialize the logging system"""
+    def check_config(self, config, parser):
+        """Check the config for sanity"""
 
-        logger = logging.getLogger("pytimelapse")
-        logger.setLevel(logging.DEBUG)
-
-        formatter = logging.Formatter(
-            '%(asctime)s [%(levelname)8s] %(filename)s:%(lineno)i: %'
-            '(message)s'
-        )
-
-        consoleLogger = logging.StreamHandler()
-        consoleLogger.setLevel(logging.DEBUG)
-        consoleLogger.setFormatter(formatter)
-
-        logger.addHandler(consoleLogger)
-
-        return logger
-
-
-class Pytimelapse(object):
-    """Handles the timelapse logic"""
-
-    def __init__(self):
-        self.logger = logging.getLogger("pytimelapse")
-        self.imageHandler = media.ImageHandler()
-
-    def run(self, config):
-        self.logger.debug("Scanning for files")
-
-        files = FileHandler().find_files(
-            config["imageFiles"],
-            config["sortFiles"]
-        )
-
-        self.logger.debug("Done, found {} files".format(len(files)))
-
-        fps, duration = self.get_fps_duration(files, config)
-
-        self.logger.info(
-            "Resulting file will have {fps:.2f} FPS and last {duration}"
-            .format(**{
-                "fps": fps,
-                "duration": str(datetime.timedelta(seconds=duration))
-            })
-        )
-
-        files = self.filter_files(files, fps, duration)
-
-        file = files[0]
-        frameSize = self.imageHandler.get_frame_size(file)
-
-        self.logger.info(
-            "Frames will be {width}x{height}".format(**{
-                "width": frameSize[0],
-                "height": frameSize[1]
-            })
-        )
-
-        video = media.VideoHandler(
-            config["codec"],
-            config["fps"],
-            frameSize
-        )
-
-        video.open(config["outFile"])
-
-        for i, file in enumerate(files):
-            video.write_frame(file)
-
-            if i % math.floor(config["fps"]) == 0:
-                duration = i / config["fps"]
-                self.logger.info(
-                    "Encoded {duration}".format(**{
-                        "duration": str(datetime.timedelta(seconds=duration))
-                    })
-                )
-
-    def filter_files(self, files, fps, duration):
-        """Filters given fileset to """
-
-        needFiles = fps * duration
-        haveFiles = len(files)
-
-        keepRatio = float(needFiles) / float(haveFiles)
-
-        if keepRatio == 1:
-            return files
-
-        newFiles = [files[0]]
-        length = 1
-        counter = keepRatio
-
-        self.logger.info(
-            "Filtering to use {fraction:.2f}% of the {count} available files."
-            .format(
-                **{
-                    "fraction": keepRatio * 100,
-                    "count": haveFiles
-                }
-            )
-        )
-
-        for i in range(1, haveFiles):
-            counter = counter + keepRatio
-            if counter >= length and length < needFiles:
-                length = length + 1
-                newFiles.append(files[i])
-
-                if length == needFiles:
-                    break
-
-        kept = len(newFiles)
-        skipped = haveFiles - kept
-
-        self.logger.info(
-            "Filtered {skipped} files, {kept} will be used.".format(**{
-                "skipped": skipped,
-                "kept": kept
-            })
-        )
-
-        return newFiles
-
-    def get_fps_duration(self, files, config):
-        """Calculate FPS and total duration of resulting file"""
-
-        frames = len(files)
-
-        if config["duration"] is None:
-            config["duration"] = frames / config["fps"]
-        elif config["fps"] is None:
-            config["fps"] = frames / config["duration"]
-
-        desiredFrames = config["fps"] * config["duration"]
-        if desiredFrames > frames:
-            raise ValueError(
-                "Frames needed for given FPS ({}) and "
-                "duration exceeds available frames ({})"
-                .format(
-                    desiredFrames, frames
-                )
-            )
-
-        return config["fps"], config["duration"]
+        if config["fps"] is None and config["duration"] is None:
+            parser.error("Invalid config, no FPS or duration specified .")

@@ -4,6 +4,7 @@
 import cv2
 
 
+# List of supported codec names for OpenCV
 codecs = {
     "PIM1": "MPEG-1",
     "MJPG": "motion-jpeg",
@@ -17,24 +18,30 @@ codecs = {
 
 
 class VideoHandler(object):
+    """Some abstraction for OpenCV VideoWriter"""
+
     def __init__(self, codec, fps, frameSize):
         self.fourcc = self.codec2fourcc(codec)
         self.fps = fps
         self.frameSize = frameSize
 
     def open(self, filename):
+        """Open a video writer"""
         self.videoWriter = cv2.VideoWriter(
             filename,
             self.fourcc,
             self.fps,
-            self.frameSize,
-            1
+            self.frameSize
         )
 
     def write_frame(self, filename):
+        """Write the given file as a frame in the video"""
+
         self.videoWriter.write(cv2.imread(filename))
 
     def codec2fourcc(self, codec):
+        """Convert codecs dict keys to OpenCV FOURCC codes"""
+
         # Convert "DIVX" -> ['D', 'I', 'V', 'X']
         args = list(codec)
 
@@ -42,10 +49,15 @@ class VideoHandler(object):
 
 
 class ImageHandler(object):
+    """Some abstraction for OpenCV images"""
+
     def open(self, filename):
+        """Open an image with OpenCV"""
         return cv2.cv.LoadImage(filename)
 
-    def get_frame_size(self, filename):
+    def get_size(self, filename):
+        """Get the width and height of the image file"""
+
         image = self.open(filename)
 
         return (image.width, image.height)

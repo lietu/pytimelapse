@@ -4,10 +4,10 @@
 
 from mock import Mock
 from unittest import TestCase
-from pytimelapse.core import Launcher
+from pytimelapse.core import ConfigHandler
 
 
-class TestLauncher(TestCase):
+class TestConfigHandler(TestCase):
     def setUp(self):
         pass
 
@@ -19,30 +19,30 @@ class TestLauncher(TestCase):
             '--config=fake_config.py',
             '--imageFiles', 'images/*.png', 'images/*.gif',
             '--fps=60',
-            '--verbose'
+            '-vv'
         ]
 
         fakeConfig = {
             "imageFiles": ['images/*.jpg'],
-            "verbose": False,
+            "verbosity": 0,
             "fps": None,
             "duration": None
         }
 
         expected = {
             "config": "fake_config.py",
-            "verbose": True,
+            "verbosity": 2,
             "fps": 60,
             "duration": None,
             "imageFiles": ['images/*.png', 'images/*.gif']
         }
 
-        launcher = Launcher()
-        launcher.read_config_file = Mock(return_value=fakeConfig)
-        launcher.check_args = Mock(return_value=True)
+        handler = ConfigHandler()
+        handler.read_config_file = Mock(return_value=fakeConfig)
+        handler.check_args = Mock(return_value=True)
 
-        arguments, parser = launcher.get_arguments(fakeArguments)
-        config = launcher.load_config(arguments, parser)
+        arguments, parser = handler.get_arguments(fakeArguments)
+        config = handler.load_config(arguments, parser)
 
         self.assertEqual(expected, config)
 
@@ -54,24 +54,24 @@ class TestLauncher(TestCase):
 
         fakeConfig = {
             "imageFiles": ['images/*.jpg', 'images/*.png', 'images/*.gif'],
-            "verbose": True,
+            "verbosity": 1,
             "fps": None,
             "duration": 60.0
         }
 
         expected = {
             "config": "config.py",
-            "verbose": False,
+            "verbosity": 0,
             "fps": 30.0,
             "duration": 60.0,
             "imageFiles": ['images/*.jpg', 'images/*.png', 'images/*.gif']
         }
 
-        launcher = Launcher()
-        launcher.read_config_file = Mock(return_value=fakeConfig)
-        launcher.check_args = Mock(return_value=True)
+        handler = ConfigHandler()
+        handler.read_config_file = Mock(return_value=fakeConfig)
+        handler.check_args = Mock(return_value=True)
 
-        arguments, parser = launcher.get_arguments(fakeArguments)
-        config = launcher.load_config(arguments, parser)
+        arguments, parser = handler.get_arguments(fakeArguments)
+        config = handler.load_config(arguments, parser)
 
         self.assertEqual(expected, config)
